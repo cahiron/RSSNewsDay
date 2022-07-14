@@ -1,6 +1,6 @@
 <img align="right" alt="RSS Logo" width="30%" height="auto" src="https://rss.com/blog/wp-content/uploads/2019/10/social_style_3_rss-512-1.png">
 
-# Rss2Telegram
+# RSSNewsDay
 
 Envio automático de feed RSS para pessoa, canal ou grupo no Telegram.
 
