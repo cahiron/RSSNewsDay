@@ -94,7 +94,7 @@ def send_message(topic, button):
         for dest in DESTINATION.split(','):
             bot.send_message(dest, MESSAGE_TEMPLATE, parse_mode='HTML', reply_markup=button, disable_web_page_preview=True)
     print(f'... {topic["title"]}')
-    time.sleep(0.2)
+    time.sleep(0.9)
 
 def get_img(url):
     try:
