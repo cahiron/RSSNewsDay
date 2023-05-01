@@ -11,7 +11,7 @@ jobs:
     timeout-minutes: 10
     steps:
       - name: Checkout repo
-        uses: actions/checkout@v2
+        uses: actions/checkout@v3
       - name: Download artifact
         id: download
         continue-on-error: true
@@ -23,7 +23,7 @@ jobs:
         continue-on-error: true
         run: mv rss2telegram/rss2telegram.db rss2telegram.db
       - name: Setup Python
-        uses: actions/setup-python@v2
+        uses: actions/setup-python@v4
         with:
           python-version: '3.8'
       - name: Install Requirements
@@ -31,13 +31,15 @@ jobs:
       - name: Run Rss to Telegram
         run: python rss2telegram.py
         env:
-          DESTINATION: ${{ secrets.DESTINATION }}
           BOT_TOKEN: ${{ secrets.BOT_TOKEN }}
-          URL: ${{ secrets.URL }}
-          EMOJIS: ${{ secrets.EMOJIS }}
-          MESSAGE_TEMPLATE: ${{ secrets.MESSAGE_TEMPLATE }}
-          BUTTON_TEXT: ${{ secrets.BUTTON_TEXT }}
-          PARAMETERS: ${{ secrets.PARAMETERS }}
+          DESTINATION: ${{ vars.DESTINATION }}
+          URL: ${{ vars.URL }}
+          EMOJIS: ${{ vars.EMOJIS }}
+          TOPIC: ${{ vars.TOPIC }}
+          HIDE_BUTTON: ${{ vars.HIDE_BUTTON }}
+          MESSAGE_TEMPLATE: ${{ vars.MESSAGE_TEMPLATE }}
+          BUTTON_TEXT: ${{ vars.BUTTON_TEXT }}
+          PARAMETERS: ${{ vars.PARAMETERS }}
           DRYRUN: ${{ steps.download.outcome }}
       - name: Upload history
         uses: actions/upload-artifact@v3
