@@ -102,18 +102,18 @@ def send_message(topic, button):
     print(f'... {topic["title"]}')
     time.sleep(0.2)
 
-#def get_img(url):
-    #try:
-        #response = requests.get(url, headers = {'User-agent': 'Mozilla/5.1'}, timeout=3)
-        #html = BeautifulSoup(response.content, 'html.parser')
-        #photo = html.find('meta', {'property': 'og:image'})['content']
-    #except TypeError:
-        #photo = False
-    #except requests.exceptions.ReadTimeout:
-        #photo = False
-    #except requests.exceptions.TooManyRedirects:
-        #photo = False
-    #return photo
+def get_img(url):
+    try:
+        response = requests.get(url, headers = {'User-agent': 'Mozilla/5.1'}, timeout=3)
+        html = BeautifulSoup(response.content, 'html.parser')
+        photo = html.find('meta', {'property': 'og:image'})['content']
+    except TypeError:
+        photo = False
+    except requests.exceptions.ReadTimeout:
+        photo = False
+    except requests.exceptions.TooManyRedirects:
+        photo = False
+    return photo
 
 def define_link(link, PARAMETERS):
     if PARAMETERS:
