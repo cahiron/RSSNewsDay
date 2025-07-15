@@ -80,6 +80,9 @@ def create_telegraph_post(topic):
     )
     return response["url"]
 
+# ===========================
+# NOVO: Função para envio seguro com tratamento de rate limit do Telegram
+# ===========================
 def send_message(topic, button):
     if DRYRUN == 'failure':
         return
@@ -99,9 +102,33 @@ def send_message(topic, button):
         btn_link = types.InlineKeyboardMarkup()
         btn = types.InlineKeyboardButton(f'{button}', url=topic['link'])
         btn_link.row(btn)
+
+    # --- INÍCIO DA MUDANÇA: tratamento de erro 429 (rate limit) ---
+    def try_send(dest, send_func, *args, **kwargs):
+        import re
+        while True:
+            try:
+                send_func(*args, **kwargs)
+                break
+            except telebot.apihelper.ApiTelegramException as e:
+                if "Too Many Requests" in str(e):
+                    match = re.search(r'retry after (\\d+)', str(e))
+                    if match:
+                        wait_time = int(match.group(1))
+                        print(f"Aguardando {wait_time} segundos devido ao limite do Telegram...")
+                        time.sleep(wait_time)
+                    else:
+                        print("Erro de limite do Telegram, aguardando 10 segundos.")
+                        time.sleep(10)
+                else:
+                    print(f"Erro ao enviar mensagem: {e}")
+                    break
+    # --- FIM DA MUDANÇA ---
+
     if HIDE_BUTTON or TELEGRAPH_TOKEN:
         for dest in DESTINATION.split(','):
-            bot.send_message(dest, MESSAGE_TEMPLATE, parse_mode='HTML', reply_to_message_id=TOPIC)
+            try_send(dest, bot.send_message, dest, MESSAGE_TEMPLATE, parse_mode='HTML', reply_to_message_id=TOPIC)
+            time.sleep(1.2)  # NOVO: Delay para evitar atingir o limite
     else:
         if topic['photo'] and not TELEGRAPH_TOKEN:
             response = requests.get(topic['photo'], headers = {'User-agent': 'Mozilla/5.1'})
@@ -109,16 +136,23 @@ def send_message(topic, button):
             for dest in DESTINATION.split(','):
                 photo = open('img', 'rb')
                 try:
-                    bot.send_photo(dest, photo, caption=MESSAGE_TEMPLATE, parse_mode='HTML', reply_markup=btn_link, reply_to_message_id=TOPIC)
+                    try_send(dest, bot.send_photo, dest, photo, caption=MESSAGE_TEMPLATE, parse_mode='HTML', reply_markup=btn_link, reply_to_message_id=TOPIC)
                 except telebot.apihelper.ApiTelegramException:
                     topic['photo'] = False
                     send_message(topic, button)
+                time.sleep(1.2)  # NOVO: Delay para evitar atingir o limite
         else:
             for dest in DESTINATION.split(','):
-                bot.send_message(dest, MESSAGE_TEMPLATE, parse_mode='HTML', reply_markup=btn_link, disable_web_page_preview=True, reply_to_message_id=TOPIC)
+                try_send(dest, bot.send_message, dest, MESSAGE_TEMPLATE, parse_mode='HTML', reply_markup=btn_link, disable_web_page_preview=True, reply_to_message_id=TOPIC)
+                time.sleep(1.2)  # NOVO: Delay para evitar atingir o limite
     print(f'... {topic["title"]}')
-    time.sleep(0.2)
 
+# ===========================
+# FIM das mudanças de tratamento de rate limit
+# ===========================
+
+# Função para obter imagem do link
+# Adicionado tratamento genérico de exceção para evitar travamentos
 def get_img(url):
     try:
         response = requests.get(url, headers = {'User-agent': 'Mozilla/5.1'}, timeout=3)
@@ -131,7 +165,7 @@ def get_img(url):
     except requests.exceptions.TooManyRedirects:
         photo = False
     except Exception:
-        photo = False  # Adicionado para capturar outros erros
+        photo = False  # NOVO: captura outros erros
     return photo
 
 def define_link(link, PARAMETERS):
@@ -156,7 +190,9 @@ def set_text_vars(text, topic):
             continue
     return text.replace('\\n', '\n').replace('{', '').replace('}', '')
 
+# ===========================
 # NOVO: Função para validar se o feed é XML válido antes de processar
+# ===========================
 def is_valid_rss(url):
     try:
         resp = requests.get(url, timeout=10)
@@ -172,7 +208,9 @@ def is_valid_rss(url):
         print(f'ERRO ao validar XML de {url}: {e}')
         return False
 
+# ===========================
 # NOVO: Função para parse seguro do feed
+# ===========================
 def safe_parse_feed(url):
     try:
         feed = feedparser.parse(url)
