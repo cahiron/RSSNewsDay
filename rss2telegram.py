@@ -10,6 +10,7 @@ import time
 import random
 import requests
 import sqlite3
+import xml.etree.ElementTree as ET  # Adicionado para validação XML
 
 def get_variable(variable):
     if not os.environ.get(f'{variable}'):
@@ -72,8 +73,8 @@ def create_telegraph_post(topic):
     response = telegraph_auth.create_page(
         f'{topic["title"]}',
         html_content=(
-            f'{topic["summary"]}<br><br>'
-            + f'<a href="{topic["link"]}">Ver original ({topic["site_name"]})</a>'
+            f'{topic["summary"]}'
+            + f'Ver original ({topic["site_name"]})'
         ),
         author_name=f'{topic["site_name"]}'
     )
@@ -82,28 +83,22 @@ def create_telegraph_post(topic):
 def send_message(topic, button):
     if DRYRUN == 'failure':
         return
-
     MESSAGE_TEMPLATE = os.environ.get(f'MESSAGE_TEMPLATE', False)
-
     if MESSAGE_TEMPLATE:
         MESSAGE_TEMPLATE = set_text_vars(MESSAGE_TEMPLATE, topic)
     else:
-        MESSAGE_TEMPLATE = f'<b>{topic["title"]}</b>'
-
+        MESSAGE_TEMPLATE = f'{topic["title"]}'
     if TELEGRAPH_TOKEN:
         iv_link = create_telegraph_post(topic)
-        MESSAGE_TEMPLATE = f'<a href="{iv_link}">󠀠</a>{MESSAGE_TEMPLATE}'
-
+        MESSAGE_TEMPLATE = f'{MESSAGE_TEMPLATE}'
     if not firewall(str(topic)):
         print(f'xxx {topic["title"]}')
         return
-
     btn_link = button
     if button:
         btn_link = types.InlineKeyboardMarkup()
         btn = types.InlineKeyboardButton(f'{button}', url=topic['link'])
         btn_link.row(btn)
-
     if HIDE_BUTTON or TELEGRAPH_TOKEN:
         for dest in DESTINATION.split(','):
             bot.send_message(dest, MESSAGE_TEMPLATE, parse_mode='HTML', reply_to_message_id=TOPIC)
@@ -135,22 +130,22 @@ def get_img(url):
         photo = False
     except requests.exceptions.TooManyRedirects:
         photo = False
+    except Exception:
+        photo = False  # Adicionado para capturar outros erros
     return photo
 
 def define_link(link, PARAMETERS):
     if PARAMETERS:
         if '?' in link:
-            return f'{link}&{PARAMETERS}'
+            return f'{link}&amp;{PARAMETERS}'
         return f'{link}?{PARAMETERS}'
     return f'{link}'
-
-
 
 def set_text_vars(text, topic):
     cases = {
         'SITE_NAME': topic['site_name'],
         'TITLE': topic['title'],
-        'SUMMARY': re.sub('<[^<]+?>', '', topic['summary']),
+        'SUMMARY': re.sub('&lt;[^&lt;]+?&gt;', '', topic['summary']),
         'LINK': define_link(topic['link'], PARAMETERS),
         'EMOJI': random.choice(EMOJIS.split(","))
     }
@@ -161,15 +156,45 @@ def set_text_vars(text, topic):
             continue
     return text.replace('\\n', '\n').replace('{', '').replace('}', '')
 
+# NOVO: Função para validar se o feed é XML válido antes de processar
+def is_valid_rss(url):
+    try:
+        resp = requests.get(url, timeout=10)
+        if resp.status_code != 200:
+            print(f'ERRO HTTP {resp.status_code}: {url}')
+            return False
+        if 'xml' not in resp.headers.get('Content-Type', ''):
+            print(f'ERRO: {url} não retorna XML.')
+            return False
+        ET.fromstring(resp.content)
+        return True
+    except Exception as e:
+        print(f'ERRO ao validar XML de {url}: {e}')
+        return False
+
+# NOVO: Função para parse seguro do feed
+def safe_parse_feed(url):
+    try:
+        feed = feedparser.parse(url)
+        if feed.bozo:
+            print(f"ERRO: {url} não parece um feed RSS válido. Detalhe: {feed.bozo_exception}")
+            return None
+        return feed
+    except Exception as e:
+        print(f"ERRO ao processar {url}: {e}")
+        return None
 
 def check_topics(url):
     now = gmtime()
-    feed = feedparser.parse(url)
-    try:
-        source = feed['feed']['title']
-    except KeyError:
+    # NOVO: validação prévia antes de tentar parsear
+    if not is_valid_rss(url):
+        print(f'ERRO: {url} não parece um feed RSS válido.')
+        return
+    feed = safe_parse_feed(url)
+    if feed is None or 'feed' not in feed or 'title' not in feed['feed']:
         print(f'\nERRO: {url} não parece um feed RSS válido.')
         return
+    source = feed['feed']['title']
     print(f'\nChecando {source}:{url}')
     for tpc in reversed(feed['items'][:10]):
         if check_history(tpc.links[0].href):
