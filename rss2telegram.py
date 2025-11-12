@@ -1,6 +1,7 @@
 from bs4 import BeautifulSoup
 from telebot import types
 from time import gmtime
+from urllib.parse import urlparse, urlunparse # Para normalização de URLs
 import feedparser
 import os
 import re
@@ -11,6 +12,24 @@ import random
 import requests
 import sqlite3
 import xml.etree.ElementTree as ET  # Adicionado para validação XML
+
+def create_table_if_not_exists():
+    conn = sqlite3.connect('rss2telegram.db')
+    cursor = conn.cursor()
+    cursor.execute('''
+    CREATE TABLE IF NOT EXISTS history (
+        link TEXT PRIMARY KEY
+    )
+    ''')
+    conn.commit()
+    conn.close()
+
+create_table_if_not_exists() # Garantir que tabela exista com link único
+
+def normalize_url(url):
+    parts = urlparse(url)
+    clean_query = '&'.join([q for q in parts.query.split('&') if not q.startswith('utm_') and q != ''])
+    return urlunparse(parts._replace(query=clean_query))
 
 def get_variable(variable):
     if not os.environ.get(f'{variable}'):
@@ -41,8 +60,7 @@ def add_to_history(link):
 def check_history(link):
     conn = sqlite3.connect('rss2telegram.db')
     cursor = conn.cursor()
-    aux = f'SELECT * from history WHERE link="{link}"'
-    cursor.execute(aux)
+    cursor.execute('SELECT 1 FROM history WHERE link = ?', (link,))
     data = cursor.fetchone()
     conn.close()
     return data
@@ -235,23 +253,25 @@ def check_topics(url):
     source = feed['feed']['title']
     print(f'\nChecando {source}:{url}')
     for tpc in reversed(feed['items'][:10]):
-        if check_history(tpc.links[0].href):
-            continue
-        add_to_history(tpc.links[0].href)
-        topic = {}
-        topic['site_name'] = feed['feed']['title']
-        topic['title'] = tpc.title.strip()
-        topic['summary'] = tpc.summary
-        topic['link'] = tpc.links[0].href
-        topic['photo'] = get_img(tpc.links[0].href)
-        BUTTON_TEXT = os.environ.get('BUTTON_TEXT', False)
-        if BUTTON_TEXT:
-            BUTTON_TEXT = set_text_vars(BUTTON_TEXT, topic)
-        try:
-            send_message(topic, BUTTON_TEXT)
-        except telebot.apihelper.ApiTelegramException as e:
-            print(e)
-            pass
+    link = normalize_url(tpc.links[0].href)  # normaliza o link
+    if check_history(link):
+        continue
+    add_to_history(link)
+    # restante do código usando 'link' no lugar de tpc.links[0].href
+    topic = {}
+    topic['site_name'] = feed['feed']['title']
+    topic['title'] = tpc.title.strip()
+    topic['summary'] = tpc.summary
+    topic['link'] = link
+    topic['photo'] = get_img(link)
+    BUTTON_TEXT = os.environ.get('BUTTON_TEXT', False)
+    if BUTTON_TEXT:
+        BUTTON_TEXT = set_text_vars(BUTTON_TEXT, topic)
+    try:
+        send_message(topic, BUTTON_TEXT)
+    except telebot.apihelper.ApiTelegramException as e:
+        print(e)
+        pass
 
 if __name__ == "__main__":
     for url in URL.split():
