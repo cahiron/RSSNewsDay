@@ -52,8 +52,7 @@ bot = telebot.TeleBot(BOT_TOKEN)
 def add_to_history(link):
     conn = sqlite3.connect('rss2telegram.db')
     cursor = conn.cursor()
-    aux = f'INSERT INTO history (link) VALUES ("{link}")'
-    cursor.execute(aux)
+    cursor.execute('INSERT OR IGNORE INTO history (link) VALUES (?)', (link,))
     conn.commit()
     conn.close()
 
@@ -253,10 +252,10 @@ def check_topics(url):
     source = feed['feed']['title']
     print(f'\nChecando {source}:{url}')
     for tpc in reversed(feed['items'][:10]):
-    link = normalize_url(tpc.links[0].href)  # normaliza o link
-    if check_history(link):
-        continue
-    add_to_history(link)
+        link = normalize_url(tpc.links[0].href)  # normaliza o link
+        if check_history(link):
+            continue
+        add_to_history(link)
     # restante do código usando 'link' no lugar de tpc.links[0].href
     topic = {}
     topic['site_name'] = feed['feed']['title']
