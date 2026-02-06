@@ -251,19 +251,20 @@ def check_topics(url):
         return
     source = feed['feed']['title']
     print(f'\nChecando {source}:{url}')
+    
     for tpc in reversed(feed['items'][:10]):
         link = normalize_url(tpc.links[0].href)  # normaliza o link
         if check_history(link):
             continue
         add_to_history(link)
     # restante do código usando 'link' no lugar de tpc.links[0].href
-    topic = {
-        topic['site_name'] = feed['feed']['title']
-        topic['title'] = tpc.title.strip()
-        topic['summary'] = tpc.summary
-        topic['link'] = link
-        topic['photo'] = get_img(link)
-    }
+        topic = { 
+            'site_name': feed['feed']['title'],
+            'title': tpc.title.strip(),
+            'summary': tpc.summary,
+            'link': link,
+            'photo': get_img(link)
+        }
     
     BUTTON_TEXT = os.environ.get('BUTTON_TEXT', False)
     if BUTTON_TEXT:
