@@ -257,12 +257,14 @@ def check_topics(url):
             continue
         add_to_history(link)
     # restante do código usando 'link' no lugar de tpc.links[0].href
-    topic = {}
-    topic['site_name'] = feed['feed']['title']
-    topic['title'] = tpc.title.strip()
-    topic['summary'] = tpc.summary
-    topic['link'] = link
-    topic['photo'] = get_img(link)
+    topic = {
+        topic['site_name'] = feed['feed']['title']
+        topic['title'] = tpc.title.strip()
+        topic['summary'] = tpc.summary
+        topic['link'] = link
+        topic['photo'] = get_img(link)
+    }
+    
     BUTTON_TEXT = os.environ.get('BUTTON_TEXT', False)
     if BUTTON_TEXT:
         BUTTON_TEXT = set_text_vars(BUTTON_TEXT, topic)
