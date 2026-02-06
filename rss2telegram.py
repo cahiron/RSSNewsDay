@@ -3,6 +3,7 @@ from telebot import types
 from time import gmtime
 from urllib.parse import urlparse, urlunparse # Para normalização de URLs
 import feedparser
+import calendar
 import os
 import re
 import telebot
@@ -241,7 +242,6 @@ def safe_parse_feed(url):
 
 def check_topics(url):
     now = gmtime()
-    # NOVO: validação prévia antes de tentar parsear
     if not is_valid_rss(url):
         print(f'ERRO: {url} não parece um feed RSS válido.')
         return
@@ -251,29 +251,43 @@ def check_topics(url):
         return
     source = feed['feed']['title']
     print(f'\nChecando {source}:{url}')
-    
+
     for tpc in reversed(feed['items'][:10]):
-        link = normalize_url(tpc.links[0].href)  # normaliza o link
+        link = normalize_url(tpc.links[0].href)
+
+        # pega timestamp da publicação
+        if hasattr(tpc, "published_parsed") and tpc.published_parsed:
+            published_ts = calendar.timegm(tpc.published_parsed)
+        else:
+            published_ts = int(time.time())
+
+        # já enviado? pula
         if check_history(link):
             continue
+
+        # só envia se for recente (últimas 24h)
+        if published_ts < time.time() - 24*3600:
+            continue
+
         add_to_history(link)
-    # restante do código usando 'link' no lugar de tpc.links[0].href
-        topic = { 
+
+        topic = {
             'site_name': feed['feed']['title'],
             'title': tpc.title.strip(),
             'summary': tpc.summary,
             'link': link,
             'photo': get_img(link)
         }
-    
-    BUTTON_TEXT = os.environ.get('BUTTON_TEXT', False)
-    if BUTTON_TEXT:
-        BUTTON_TEXT = set_text_vars(BUTTON_TEXT, topic)
-    try:
-        send_message(topic, BUTTON_TEXT)
-    except telebot.apihelper.ApiTelegramException as e:
-        print(e)
-        pass
+
+        BUTTON_TEXT = os.environ.get('BUTTON_TEXT', False)
+        if BUTTON_TEXT:
+            BUTTON_TEXT = set_text_vars(BUTTON_TEXT, topic)
+
+        try:
+            send_message(topic, BUTTON_TEXT)
+        except telebot.apihelper.ApiTelegramException as e:
+            print(e)
+            pass
 
 if __name__ == "__main__":
     for url in URL.split():
